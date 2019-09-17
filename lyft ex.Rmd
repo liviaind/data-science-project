@@ -1,0 +1,140 @@
+---
+title: "liv"
+author: "Livia Indrawan"
+date: "8/15/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r lyft}
+## Response Surface Methodology Example (Lyft Data)
+
+## Various functions that will be useful:
+# Function the plots a 3D surface and the 2D contour plot where the surface is at most a 2nd order polynomial in 2 factors
+plot.surf <- function(beta, model.type, x1lim, x2lim){
+  library(plot3D)
+  b0 <- beta[1]
+  b1 <- beta[2]
+  b2 <- beta[3]
+  b12 <- beta[4]
+  b11 <- beta[5]
+  b22 <- beta[6]
+  
+  m <- mesh(seq(x1lim[1], x1lim[2], 0.1), seq(x2lim[1] ,x2lim[2], 0.1))
+  x1 <- m$x
+  x2 <- m$y
+  if(model.type == "linear"){
+    y <- b0 + b1*x1 + b2*x2 + b12*x1*x2 + b11*(x1^2) + b22*(x2^2)  
+  }else if(model.type == "logistic"){
+    y <- exp(b0 + b1*x1 + b2*x2 + b12*x1*x2 + b11*(x1^2) + b22*(x2^2)) / (1+exp(b0 + b1*x1 + b2*x2 + b12*x1*x2 + b11*(x1^2) + b22*(x2^2)))
+  }
+  
+  par(mfrow=c(2,2))
+  for (i in 1:4){
+    # Four different viewing angles
+    surf3D(x1, x2, y, xlim = c(x1lim[1], x1lim[2]), ylim = c(x2lim[1] ,x2lim[2]), xlab="x1", ylab="x2", zlab = "Y", axes = TRUE, bty = "b", theta = 30*(i-1), main = "Response Surface Plot")
+  }
+  par(mfrow=c(1,1))
+  contour(seq(x1lim[1], x1lim[2], 0.1), seq(x2lim[1] ,x2lim[2], 0.1), y, xlab = "x1", ylab = "x2", main = "Response Surface Contours", asp = 1, xlim = c(x1lim[1], x1lim[2]), ylim = c(x2lim[1],x2lim[2]))
+  #return(list=list(x1=x1, x2=x2, y=y))
+}
+# Function that defines the response surface (at most a 2nd order polynomial with 2 factors)
+resp.surf <- function(x, beta, model.type){
+  x1 <- x[1]
+  x2 <- x[2]
+  b0 <- beta[1]
+  b1 <- beta[2]
+  b2 <- beta[3]
+  b12 <- beta[4]
+  b11 <- beta[5]
+  b22 <- beta[6]
+  
+  if(model.type == "linear"){
+    y <- b0 + b1*x1 + b2*x2 + b12*x1*x2 + b11*(x1^2) + b22*(x2^2)  
+  }else if(model.type == "logistic"){
+    y <- exp(b0 + b1*x1 + b2*x2 + b12*x1*x2 + b11*(x1^2) + b22*(x2^2)) / (1+exp(b0 + b1*x1 + b2*x2 + b12*x1*x2 + b11*(x1^2) + b22*(x2^2)))
+  }
+  return(as.numeric(-y))
+}
+# Function that calculates the gradient vector of the response surface (at most a 2nd order polynomial with 2 factors)
+grad <- function(x, beta, model.type){
+  x1 <- x[1]
+  x2 <- x[2]
+  b0 <- beta[1]
+  b1 <- beta[2]
+  b2 <- beta[3]
+  b12 <- beta[4]
+  b11 <- beta[5]
+  b22 <- beta[6]
+  if(model.type == "linear"){
+    g <- c(b1 + b12*x2 + 2*b11*x1, b2 + b12*x1 + 2*b22*x2)
+  }else if(model.type == "logistic"){
+    g <- c(b1 + b12*x2 + 2*b11*x1, b2 + b12*x1 + 2*b22*x2) * exp(b0 + b1*x1 + b2*x2 + b12*x1*x2 + b11*(x1^2) + b22*(x2^2)) / (1+exp(b0 + b1*x1 + b2*x2 + b12*x1*x2 + b11*(x1^2) + b22*(x2^2)))^2
+  }
+  return(-g)
+}
+
+
+```
+\pagebreak
+```{r lyft2}
+
+## Lyft promotional offer example
+##    y = booking indicator
+##   x1 = amount of discount (%)         -> low / high = 25% / 75%
+##   x2 = duration of discount (# days)  -> low / high = 1 day / 7days
+##
+## We run a 2-factor central composite design to estimate the full 2nd order response surface. Design matrix looks like
+I <- rep(1, 9)
+X1 <- c(-1,-1,1,1,0,sqrt(2),-sqrt(2),0,0)
+X2 <- c(-1,1,-1,1,0,0,0,sqrt(2),-sqrt(2))
+X1X2 <- X1*X2
+X1q <- X1^2
+X2q <- X2^2
+X <- cbind(I, X1, X2, X1X2, X1q, X2q)
+X
+
+## Read-in the data
+lyft <- read.csv("/Users/Liv/Documents/UNI assignments + modules/3B - Spring 2019/STAT 430/R examples/07.25 lyft.csv", header = TRUE)
+
+## Calculate the booking rate in each condition
+pi_hat <- aggregate(x = lyft$y, by = list(condition = kronecker(1:9, rep(1, 500))), FUN = mean)
+data.frame(condition = pi_hat$condition, X[,2:6], booking.rate = pi_hat$x)
+
+## We then fit the full 2nd-order response surface
+model <- glm(y ~ X1 + X2 + X1X2 + X1q + X2q, data = lyft, family = binomial(link = "logit"))
+summary(model)
+
+## Let's visualize this surface:
+plot.surf(beta = model$coefficients, model.type = "logistic", x1lim = c(-2,2), x2lim = c(-2,2))
+
+## Let's find the maximum of this surface and the corresponding factor levels at which this is achieved
+opt <- optim(par = c(0,0), fn = resp.surf, gr = grad, beta = model$coefficients, model.type = "logistic", method = "BFGS")
+y_s <- -opt$value #the maximum value
+y_s
+x_s.c <- opt$par #the point at which this achieved (coded units)
+x_s.c
+
+## Convert stationary point in coded units to natural units
+x_s.n <- c(((75-25)*x_s.c[1]+(75+25))/2, ((7-1)*x_s.c[2]+(7+1))/2) #the point at which this is achieved (natural units)
+x_s.n
+
+## 95% prediction interval at this optimum:
+n.data <- data.frame(X1=x_s.c[1], X2=x_s.c[2], X1X2=x_s.c[1]*x_s.c[2], X1q=x_s.c[1]^2, X2q=x_s.c[2]^2)
+predict(model, newdata = n.data, type = "response")
+
+## 95% prediction interval at convenient near-optimum:
+n.data <- data.frame(X1=0, X2=-1, X1X2=0, X1q=0^2, X2q=(-1)^2)
+pred <- predict(model, newdata = n.data, type = "response", se.fit = TRUE)
+print(paste("Prediction: ", pred$fit, sep = ""))
+print(paste("95% Prediction interval: (", pred$fit-qnorm(0.975)*pred$se.fit, ",", pred$fit+qnorm(0.975)*pred$se.fit, ")", sep = ""))
+
+## Thus, it seems like a promotional offer associated with a 50% discount offered for 1-day results in an
+## optimal booking rate (~80%)
+
+
+
+```
