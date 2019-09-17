@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Function the plots a 3D surface and the 2D contour plot where the surface is at most a 2nd order polynomial in 2 factors
 plot.surf <- function(beta, model.type, x1lim, x2lim){
   library(plot3D)
+  a <- beta[8]
   b0 <- beta[1]
   b1 <- beta[2]
   b2 <- beta[3]
